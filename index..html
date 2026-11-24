@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GRO Operations System</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{--bg:#f2f5ff;--card:#fff;--tx:#0b1440;--mu:#5a6590;--pr:#1a45e8;--dk:#0a1a6b;--bd:#dbe2fb;--ok:#1f9d63;--wr:#d98a00;--bad:#d64545}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:"Segoe UI",Tahoma,Arial,sans-serif;line-height:1.6}
+.top{background:linear-gradient(135deg,var(--pr),var(--dk));color:#fff;padding:12px 16px}
+.top .in{max-width:1000px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px}.logo svg{width:34px;height:34px}
+.logo b{font-size:22px;letter-spacing:2px;direction:ltr}.logo small{display:block;font-size:10px;opacity:.85;direction:ltr;letter-spacing:1px}
+.me{margin-inline-start:auto;font-size:13px;display:flex;gap:8px;align-items:center}
+.w{max-width:1000px;margin:0 auto;padding:14px 16px 40px}
+nav{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+input,select,textarea,button{font:inherit;color:var(--tx);background:#fff;border:1px solid var(--bd);border-radius:8px;padding:8px 10px;max-width:100%}
+.f input,.f select,.f textarea{width:100%}
+button{cursor:pointer;background:var(--pr);color:#fff;border:0;font-weight:600}
+button.g{background:var(--card);color:var(--tx);border:1px solid var(--bd)}button.on{background:var(--dk);color:#fff}
+button.r{background:transparent;color:var(--bad);border:1px solid var(--bd)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
+.f{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}.f .full{grid-column:1/-1}
+label.l{font-size:12px;color:var(--mu);display:block}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+h2{margin:0 0 10px;font-size:18px}h3{margin:0;font-size:16px}
+.m{font-size:12px;color:var(--mu)}.badge{display:inline-block;padding:1px 10px;border-radius:99px;font-size:12px;color:#fff;background:var(--pr)}
+.p-urgent{background:var(--bad)}.p-high{background:var(--wr)}.p-mid{background:var(--pr)}.p-low{background:#7b87b8}
+.s-done{background:var(--ok)}.s-review{background:var(--wr)}.s-todo{background:#7b87b8}
+.late{color:var(--bad);font-weight:700}
+.bar{height:6px;background:var(--bd);border-radius:9px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--pr)}
+.chk{display:flex;flex-wrap:wrap;gap:6px}.chk label{display:flex;gap:4px;align-items:center;font-size:13px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:3px 8px}
+.chk input{width:auto;padding:0}.dept{margin-bottom:8px}.dept b{font-size:13px;color:var(--pr)}
+.empty{text-align:center;color:var(--mu);padding:30px}a{color:var(--pr)}
+.note{border-inline-start:3px solid var(--pr);padding:2px 10px;margin:6px 0;font-size:14px}
+.login{max-width:380px;margin:50px auto}
+.err{color:var(--bad);font-size:13px;min-height:20px}
+</style>
+</head>
+<body>
+<div class="top"><div class="in">
+<div class="logo"><svg viewBox="180 220 510 580"><polygon fill="#fff" points="470,232 677,232 460,447 677,447 677,567 462,784 256,784 470,567 190,567 190,513"/><rect fill="#fff" x="623" y="348" width="54" height="54"/></svg><div><b>GRO</b><small>FROM VISION TO GROWTH</small></div></div>
+<div class="me" id="me"></div></div></div>
+<div class="w"><div id="app"></div></div>
+<script>
+// ====== ضعي إعدادات Firebase بتاعتك هنا (من Project settings > Your apps > Web app) ======
+const firebaseConfig={apiKey:"AIzaSyBFEuATf3WkEvucHHbrJD53U6GDIUQ20Ws",authDomain:"gro-os.firebaseapp.com",projectId:"gro-os",appId:"1:177293542818:web:81243cb2c71efe0148defb"};
+// =========================================================================================
+const DOMAIN='@gro-os.app';
+const DEFAULT_DEPTS={'Graphics':['Social Media Design','Branding & Identity','Print','Packaging','Ads Creatives'],'Videos':['Motion Graphics','Montage','Shooting','3D & CGI','Reels & Short Videos'],'Content':['Copywriting','Ad Copy','Scripts','Blog & SEO','Content Plan'],'Social Media':['Community Management','Paid Ads','Page Management','Strategy & Planning','Analytics']};
+const ST={todo:'جديدة',doing:'جاري',review:'مراجعة',done:'تمت'},PR={low:'منخفضة',mid:'متوسطة',high:'عالية',urgent:'عاجلة'};
+const app=document.getElementById('app'),meEl=document.getElementById('me');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today=()=>new Date().toISOString().slice(0,10);
+if(firebaseConfig.apiKey.startsWith('PASTE')){app.innerHTML='<div class="card empty">لازم تحطي إعدادات Firebase في أول الملف (firebaseConfig).</div>'}
+else{
+firebase.initializeApp(firebaseConfig);
+const auth=firebase.auth(),db=firebase.firestore();
+let me=null,users={},projects=[],tasks=[],DEPTS=DEFAULT_DEPTS,view='my',pid=null,form=null,editTask=null,unsubs=[];
+const admin=()=>me&&me.role==='admin';
+const nm=id=>esc((users[id]||{}).name||'—');
+const SVC=()=>Object.entries(DEPTS).flatMap(([d,b])=>b.map(x=>d+' › '+x));
+const links=a=>(a||[]).map(u=>/^https:\/\//.test(u)?'<a href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">'+esc(u)+'</a>':esc(u)).join('<br>');
+const val=id=>document.getElementById(id).value.trim(),lines=id=>val(id).split('\n').map(s=>s.trim()).filter(Boolean);
+const chk=n=>[...app.querySelectorAll('input[name='+n+']:checked')].map(i=>i.value);
+const uOpts=sel=>Object.entries(users).map(([id,u])=>'<option value="'+esc(id)+'"'+(id===sel?' selected':'')+'>'+esc(u.name)+'</option>').join('');
+
+function loginView(msg,setup){
+app.innerHTML='<div class="card login"><h2>'+(setup?'إنشاء حساب المدير (أول مرة)':'تسجيل الدخول')+'</h2><div class="f">'+
+(setup?'<div class="full"><label class="l">الاسم</label><input id="ln"></div>':'')+
+'<div class="full"><label class="l">اسم المستخدم (إنجليزي)</label><input id="lu" autocapitalize="none" dir="ltr"></div>'+
+'<div class="full"><label class="l">الباسورد (6 حروف على الأقل)</label><input id="lp" type="password" dir="ltr"></div>'+
+'<div class="full err" id="le">'+esc(msg||'')+'</div><button class="full" id="lb">'+(setup?'إنشاء':'دخول')+'</button></div>'+
+'<p class="m" style="text-align:center;margin-top:10px"><a href="#" id="sw">'+(setup?'رجوع لتسجيل الدخول':'أول استخدام؟ إنشاء حساب المدير')+'</a></p></div>';
+document.getElementById('sw').onclick=e=>{e.preventDefault();loginView('',!setup)};
+const go=async()=>{const u=val('lu').toLowerCase(),p=document.getElementById('lp').value,le=document.getElementById('le');
+if(!/^[a-z0-9._-]{3,}$/.test(u)){le.textContent='اسم المستخدم حروف إنجليزي وأرقام (3 على الأقل)';return}
+document.getElementById('lb').disabled=true;
+try{
+if(setup){
+const c=await auth.createUserWithEmailAndPassword(u+DOMAIN,p);
+try{const b=db.batch();b.set(db.doc('settings/init'),{at:Date.now()});b.set(db.doc('users/'+c.user.uid),{username:u,name:val('ln')||u,role:'admin'});await b.commit()}
+catch(e){await c.user.delete();throw{code:'setup-done'}}
+}else await auth.signInWithEmailAndPassword(u+DOMAIN,p);
+}catch(e){document.getElementById('lb').disabled=false;le.textContent=e.code==='setup-done'?'تم إعداد المدير قبل كده، ادخلي بحسابك.':['auth/invalid-credential','auth/wrong-password','auth/user-not-found'].includes(e.code)?'اسم المستخدم أو الباسورد غلط':e.code==='auth/weak-password'?'الباسورد ضعيف':e.code==='auth/email-already-in-use'?'اسم المستخدم موجود':'حصل خطأ، حاولي تاني'}};
+document.getElementById('lb').onclick=go;document.getElementById('lp').onkeydown=e=>{if(e.key==='Enter')go()};}
+
+auth.onAuthStateChanged(async u=>{
+unsubs.forEach(f=>f());unsubs=[];me=null;meEl.innerHTML='';
+if(!u){loginView();return}
+try{
+let d=await db.doc('users/'+u.uid).get();
+if(!d.exists){await new Promise(r=>setTimeout(r,800));d=await db.doc('users/'+u.uid).get()}
+if(!d.exists){await auth.signOut();loginView('الحساب ده غير مفعّل. كلمي المدير.');return}
+me={uid:u.uid,...d.data()};start();
+}catch(e){await auth.signOut();loginView('تعذر الدخول.')}});
+
+function start(){
+meEl.innerHTML=esc(me.name)+' · '+(admin()?'مدير':'موظف')+' <button class="g" id="lo">خروج</button>';
+document.getElementById('lo').onclick=()=>auth.signOut();
+const er=()=>{app.innerHTML='<div class="card empty">تعذر تحميل البيانات (راجعي قواعد الأمان).</div>'};
+const rr=()=>{if(!form)render()};
+unsubs.push(db.collection('users').onSnapshot(s=>{users={};s.docs.forEach(d=>users[d.id]=d.data());rr()},er));
+unsubs.push(db.doc('settings/depts').onSnapshot(s=>{DEPTS=s.exists&&s.data().map?s.data().map:DEFAULT_DEPTS;rr()},()=>{}));
+unsubs.push(db.collection('projects').onSnapshot(s=>{projects=s.docs.map(d=>({id:d.id,...d.data()}));rr()},er));
+const tq=admin()?db.collection('tasks'):db.collection('tasks').where('assignees','array-contains',me.uid);
+unsubs.push(tq.onSnapshot(s=>{tasks=s.docs.map(d=>({id:d.id,...d.data()}));rr()},er));
+view='my';render();}
+
+const pOf=id=>projects.find(p=>p.id===id);
+function taskCard(t,sp){const p=pOf(t.projectId),late=t.status!=='done'&&t.due&&t.due<today();
+return '<div class="card"><div class="row"><div><h3>'+esc(t.name)+' <span class="badge" style="background:var(--dk)">'+(t.kind==='sub'?'فرعية':'رئيسية')+'</span></h3><div class="m">'+(sp&&p?'📁 '+esc(p.client)+' — '+esc(p.name)+' · ':'')+(t.service?'🧩 '+esc(t.service):'')+'</div></div><div><span class="badge p-'+esc(t.priority)+'">'+esc(PR[t.priority]||'')+'</span> <span class="badge s-'+esc(t.status)+'">'+esc(ST[t.status]||'')+'</span></div></div>'+
+'<div class="m" style="margin:6px 0">📅 البداية: '+esc(t.start||'—')+' · الاستحقاق: <span class="'+(late?'late':'')+'">'+esc(t.due||'—')+(late?' (متأخرة)':'')+'</span> · 👥 '+((t.assignees||[]).map(nm).join('، ')||'—')+'</div>'+
+(t.desc?'<p style="margin:6px 0;white-space:pre-wrap">'+esc(t.desc)+'</p>':'')+((t.links||[]).length?'<div class="m">🔗 '+links(t.links)+'</div>':'')+
+'<div class="row" style="margin-top:8px;justify-content:flex-start">'+Object.keys(ST).filter(k=>k!==t.status).map(k=>'<button class="g" data-act="status" data-id="'+esc(t.id)+'" data-v="'+k+'">'+ST[k]+'</button>').join('')+(admin()?'<button class="g" data-act="edittask" data-id="'+esc(t.id)+'">تعديل</button><button class="r" data-act="deltask" data-id="'+esc(t.id)+'">حذف</button>':'')+'</div></div>'}
+function projectForm(){return '<div class="card"><h2>مشروع جديد</h2><div class="f"><div><label class="l">اسم العميل</label><input id="pc"></div><div><label class="l">اسم المشروع</label><input id="pn"></div>'+
+'<div><label class="l">المسؤول الداخلي</label><select id="po"><option value="">اختاري</option>'+uOpts()+'</select></div><div><label class="l">مدير المشروع</label><select id="pm"><option value="">اختاري</option>'+uOpts()+'</select></div>'+
+'<div><label class="l">تاريخ استحقاق المشروع</label><input id="pd" type="date"></div><div class="full"><label class="l">روابط المشروع (رابط في كل سطر)</label><textarea id="pl" rows="2"></textarea></div>'+
+'<div class="full"><label class="l">ملاحظات</label><textarea id="pt" rows="2"></textarea></div><div class="full"><label class="l">الأقسام والفروع</label>'+
+Object.entries(DEPTS).map(([d,b])=>'<div class="dept"><b>'+esc(d)+'</b><div class="chk">'+b.map(x=>'<label><input type="checkbox" name="svc" value="'+esc(d+' › '+x)+'">'+esc(x)+'</label>').join('')+'</div></div>').join('')+'</div>'+
+'<button data-act="saveproject">حفظ المشروع</button><button class="g" data-act="cancel">إلغاء</button></div></div>'}
+function taskForm(p){const mains=tasks.filter(t=>t.projectId===p.id&&t.kind==='main'),e=editTask||{};
+return '<div class="card"><h2>'+(e.id?'تعديل مهمة':'مهمة جديدة')+'</h2><div class="f"><div><label class="l">نوع المهمة</label><select id="tk"><option value="main"'+(e.kind==='main'?' selected':'')+'>رئيسية</option><option value="sub"'+(e.kind==='sub'?' selected':'')+'>فرعية</option></select></div>'+
+'<div><label class="l">تابعة لمهمة (للفرعية)</label><select id="tp"><option value="">—</option>'+mains.map(m=>'<option value="'+esc(m.id)+'"'+(m.id===e.parentId?' selected':'')+'>'+esc(m.name)+'</option>').join('')+'</select></div>'+
+'<div><label class="l">الخدمة</label><select id="ts"><option value="">—</option>'+(p.services||SVC()).map(s=>'<option'+(s===e.service?' selected':'')+'>'+esc(s)+'</option>').join('')+'</select></div>'+
+'<div class="full"><label class="l">اسم المهمة</label><input id="tn" value="'+esc(e.name)+'"></div>'+
+'<div><label class="l">الحالة</label><select id="tst">'+Object.entries(ST).map(([k,v])=>'<option value="'+k+'"'+((e.status||'todo')===k?' selected':'')+'>'+v+'</option>').join('')+'</select></div>'+
+'<div><label class="l">الأولوية</label><select id="tpr">'+Object.entries(PR).map(([k,v])=>'<option value="'+k+'"'+((e.priority||'mid')===k?' selected':'')+'>'+v+'</option>').join('')+'</select></div>'+
+'<div><label class="l">تاريخ البداية</label><input id="tsd" type="date" value="'+esc(e.start)+'"></div><div><label class="l">تاريخ الاستحقاق</label><input id="ted" type="date" value="'+esc(e.due)+'"></div>'+
+'<div class="full"><label class="l">الموظفون</label><div class="chk">'+Object.entries(users).map(([id,u])=>'<label><input type="checkbox" name="asg" value="'+esc(id)+'"'+((e.assignees||[]).includes(id)?' checked':'')+'>'+esc(u.name)+'</label>').join('')+'</div></div>'+
+'<div class="full"><label class="l">وصف المهمة</label><textarea id="td" rows="3">'+esc(e.desc)+'</textarea></div><div class="full"><label class="l">روابط المهمة (رابط في كل سطر)</label><textarea id="tl" rows="2">'+esc((e.links||[]).join('\n'))+'</textarea></div>'+
+'<button data-act="savetask" data-id="'+esc(e.id||'')+'">حفظ المهمة</button><button class="g" data-act="cancel">إلغاء</button></div></div>'}
+function deptsView(){return '<div class="card"><h2>الأقسام والفروع</h2>'+Object.entries(DEPTS).map(([d,b])=>'<div class="dept"><div class="row"><b>'+esc(d)+'</b><button class="r" data-act="deldept" data-d="'+esc(d)+'">حذف القسم</button></div><div class="chk">'+b.map(x=>'<label>'+esc(x)+' <a href="#" data-act="delbranch" data-d="'+esc(d)+'" data-b="'+esc(x)+'" style="color:var(--bad)">✕</a></label>').join('')+'</div><div class="row" style="margin-top:4px;justify-content:flex-start"><input id="nb_'+esc(d)+'" placeholder="فرع جديد"><button data-act="addbranch" data-d="'+esc(d)+'">إضافة فرع</button></div></div>').join('')+
+'<div class="row" style="margin-top:12px;justify-content:flex-start"><input id="nd" placeholder="اسم قسم جديد"><button data-act="adddept">➕ إضافة قسم</button></div></div>'}
+function teamView(){return '<div class="card"><h2>إضافة موظف</h2><div class="f"><div><label class="l">الاسم</label><input id="un"></div><div><label class="l">اسم المستخدم (إنجليزي)</label><input id="uu" dir="ltr" autocapitalize="none"></div><div><label class="l">الباسورد</label><input id="up" dir="ltr"></div><div><label class="l">الصلاحية</label><select id="ur"><option value="employee">موظف</option><option value="admin">مدير</option></select></div><div class="err full" id="ue"></div><button data-act="adduser">إضافة</button></div></div>'+
+'<div class="card"><h2>الفريق</h2>'+Object.entries(users).map(([id,u])=>'<div class="row" style="padding:6px 0;border-bottom:1px solid var(--bd)"><div><b>'+esc(u.name)+'</b> <span class="m" dir="ltr">'+esc(u.username)+'</span> <span class="badge">'+(u.role==='admin'?'مدير':'موظف')+'</span></div>'+(id!==me.uid?'<button class="r" data-act="deluser" data-id="'+esc(id)+'">إيقاف</button>':'')+'</div>').join('')+'</div>'}
+
+function render(){if(!me)return;
+let h='<nav><button class="'+(view==='my'?'on':'g')+'" data-act="nav" data-v="my">مهامي</button><button class="'+(view==='projects'||view==='project'?'on':'g')+'" data-act="nav" data-v="projects">المشاريع</button>'+(admin()?'<button class="'+(view==='team'?'on':'g')+'" data-act="nav" data-v="team">الفريق</button><button class="'+(view==='depts'?'on':'g')+'" data-act="nav" data-v="depts">الأقسام</button>':'')+'</nav>';
+if(view==='my'){const mine=tasks.filter(t=>(t.assignees||[]).includes(me.uid)).sort((a,b)=>(a.due||'9').localeCompare(b.due||'9')),late=mine.filter(t=>t.status!=='done'&&t.due&&t.due<today()).length;
+h+='<div class="card row"><b>عندك '+mine.filter(t=>t.status!=='done').length+' مهمة مفتوحة</b><span class="'+(late?'late':'m')+'">'+late+' متأخرة</span></div>'+(mine.length?mine.map(t=>taskCard(t,true)).join(''):'<div class="card empty">مفيش مهام مسندة ليكي حاليًا 🎉</div>')}
+else if(view==='team'&&admin())h+=teamView();
+else if(view==='depts'&&admin())h+=deptsView();
+else if(view==='projects'){
+if(admin())h+=form==='project'?projectForm():'<button data-act="newproject" style="margin-bottom:12px">➕ مشروع جديد</button>';
+h+=projects.length?projects.slice().sort((a,b)=>(a.due||'9').localeCompare(b.due||'9')).map(p=>{const ts=tasks.filter(t=>t.projectId===p.id),d=ts.filter(t=>t.status==='done').length,pc=ts.length?Math.round(d/ts.length*100):0;
+return '<div class="card"><div class="row"><div><h3>'+esc(p.client)+' — '+esc(p.name)+'</h3><div class="m">المدير: '+nm(p.manager)+' · المسؤول: '+nm(p.owner)+' · الاستحقاق: '+esc(p.due||'—')+'</div></div><button data-act="openproj" data-id="'+esc(p.id)+'">فتح</button></div>'+(admin()?'<div class="bar"><i style="width:'+pc+'%"></i></div><div class="m">'+d+'/'+ts.length+' مهام تمت</div>':'')+'</div>'}).join(''):'<div class="card empty">مفيش مشاريع لسه.</div>'}
+else{const p=pOf(pid);if(!p){view='projects';return render()}
+const ts=tasks.filter(t=>t.projectId===p.id).sort((a,b)=>(a.kind==='main'?0:1)-(b.kind==='main'?0:1)||(a.due||'9').localeCompare(b.due||'9'));
+h+='<button class="g" data-act="nav" data-v="projects" style="margin-bottom:10px">← كل المشاريع</button><div class="card"><div class="row"><h2>'+esc(p.client)+' — '+esc(p.name)+'</h2>'+(admin()?'<button class="r" data-act="delproj" data-id="'+esc(p.id)+'">حذف المشروع</button>':'')+'</div><div class="m">مدير المشروع: '+nm(p.manager)+' · المسؤول الداخلي: '+nm(p.owner)+' · الاستحقاق: '+esc(p.due||'—')+'</div>'+
+((p.services||[]).length?'<div style="margin-top:6px">'+p.services.map(s=>'<span class="badge" style="margin:2px">'+esc(s)+'</span>').join('')+'</div>':'')+((p.links||[]).length?'<div class="m" style="margin-top:6px">🔗 '+links(p.links)+'</div>':'')+(p.notes?'<div class="note">'+esc(p.notes)+'</div>':'')+
+'<h3 style="margin-top:10px">ملاحظات جديدة</h3>'+((p.feed||[]).map(n=>'<div class="note"><span class="m">'+nm(n.by)+' · '+esc(n.at)+'</span><br>'+esc(n.text)+'</div>').join('')||'<div class="m">لا توجد ملاحظات.</div>')+'<div class="row" style="margin-top:6px"><input id="nt" placeholder="اكتبي ملاحظة…" style="flex:1"><button data-act="addnote">إضافة</button></div></div>'+
+'<h2>المهام ('+ts.length+')</h2>'+(admin()?(form==='task'?taskForm(p):'<button data-act="newtask" style="margin-bottom:12px">➕ مهمة جديدة</button>'):'')+(ts.length?ts.map(t=>taskCard(t,false)).join(''):'<div class="card empty">مفيش مهام ليكي في المشروع ده.</div>')}
+app.innerHTML=h}
+
+const saveDepts=()=>db.doc('settings/depts').set({map:DEPTS});
+app.addEventListener('click',async e=>{const b=e.target.closest('[data-act]');if(!b||!me)return;e.preventDefault();const a=b.dataset.act,id=b.dataset.id,v=b.dataset.v,d=b.dataset.d;
+try{
+if(a==='nav'){view=v;form=null;render()}
+else if(a==='openproj'){pid=id;view='project';form=null;render()}
+else if(a==='newproject'){form='project';render()}
+else if(a==='newtask'){form='task';editTask=null;render()}
+else if(a==='edittask'){editTask=tasks.find(t=>t.id===id);form='task';render()}
+else if(a==='cancel'){form=null;editTask=null;render()}
+else if(a==='saveproject'){if(!val('pc')||!val('pn')){alert('اكتبي اسم العميل واسم المشروع');return}b.disabled=true;
+await db.collection('projects').add({client:val('pc'),name:val('pn'),owner:val('po'),manager:val('pm'),due:val('pd'),links:lines('pl'),notes:val('pt'),services:chk('svc'),feed:[],createdBy:me.uid,createdAt:Date.now()});form=null;render()}
+else if(a==='savetask'){if(!val('tn')){alert('اكتبي اسم المهمة');return}
+const x={projectId:pid,kind:val('tk'),parentId:val('tk')==='sub'?val('tp'):'',service:val('ts'),name:val('tn'),status:val('tst'),priority:val('tpr'),start:val('tsd'),due:val('ted'),assignees:chk('asg'),desc:val('td'),links:lines('tl')};
+b.disabled=true;if(id)await db.collection('tasks').doc(id).update(x);else await db.collection('tasks').add({...x,createdBy:me.uid,createdAt:Date.now()});form=null;editTask=null;render()}
+else if(a==='status')await db.collection('tasks').doc(id).update({status:v});
+else if(a==='deltask'){if(confirm('حذف المهمة؟'))await db.collection('tasks').doc(id).delete()}
+else if(a==='delproj'){if(confirm('حذف المشروع وكل مهامه؟')){for(const t of tasks.filter(t=>t.projectId===id))await db.collection('tasks').doc(t.id).delete();await db.collection('projects').doc(id).delete();view='projects'}}
+else if(a==='addnote'){const t=val('nt');if(!t)return;const p=pOf(pid);await db.collection('projects').doc(pid).update({feed:[...(p.feed||[]),{by:me.uid,at:today(),text:t}]})}
+else if(a==='adddept'){const n=val('nd');if(!n||DEPTS[n])return;DEPTS={...DEPTS,[n]:[]};await saveDepts()}
+else if(a==='deldept'){if(confirm('حذف القسم؟')){const c={...DEPTS};delete c[d];DEPTS=c;await saveDepts()}}
+else if(a==='addbranch'){const n=document.getElementById('nb_'+d).value.trim();if(!n)return;DEPTS={...DEPTS,[d]:[...DEPTS[d],n]};await saveDepts()}
+else if(a==='delbranch'){DEPTS={...DEPTS,[d]:DEPTS[d].filter(x=>x!==b.dataset.b)};await saveDepts()}
+else if(a==='adduser'){const u=val('uu').toLowerCase(),p=document.getElementById('up').value,ue=document.getElementById('ue');
+if(!val('un')||!/^[a-z0-9._-]{3,}$/.test(u)||p.length<6){ue.textContent='املي الاسم، واسم مستخدم إنجليزي، وباسورد 6 حروف على الأقل';return}
+b.disabled=true;const sec=firebase.initializeApp(firebaseConfig,'sec'+Date.now());
+try{const c=await sec.auth().createUserWithEmailAndPassword(u+DOMAIN,p);await db.doc('users/'+c.user.uid).set({username:u,name:val('un'),role:val('ur')});await sec.auth().signOut();ue.textContent='';view='team';form=null;render()}
+catch(er){b.disabled=false;ue.textContent=er.code==='auth/email-already-in-use'?'اسم المستخدم موجود':'تعذر إضافة الموظف'}
+await sec.delete()}
+else if(a==='deluser'){if(confirm('إيقاف الحساب؟ مش هيقدر يدخل تاني.'))await db.doc('users/'+id).delete()}
+}catch(err){alert('تعذر تنفيذ العملية (قد لا تملكي الصلاحية).');render()}});
+}
+</script>
+</body>
+</html>
